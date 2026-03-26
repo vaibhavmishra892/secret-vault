@@ -42,7 +42,18 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
             return null;
         }
 
-        const data = await response.json();
+        // Catch empty responses to avoid "Unexpected end of JSON input"
+        const text = await response.text();
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse JSON:', text);
+                throw new Error('Invalid response from server');
+            }
+        }
+
         if (!response.ok) {
             throw new Error(data.error || 'API Request Failed');
         }
@@ -54,15 +65,21 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 }
 
 // Logic
-function login() {
+async function login() {
     const key = inputs.masterKey.value.trim();
     if (key.length !== 64) {
         alert('Master Key must be exactly 64 hex characters (32 bytes).');
         return;
     }
-    masterKey = key;
-    showView('dashboard');
-    loadSecrets();
+
+    // Call /unseal to start the vault session for this operator
+    const res = await apiRequest('/unseal', 'POST', { masterKey: key });
+
+    if (res) {
+        masterKey = key;
+        showView('dashboard');
+        loadSecrets();
+    }
 }
 
 function logout() {
