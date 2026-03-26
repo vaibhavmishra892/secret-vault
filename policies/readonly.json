@@ -1,0 +1,6 @@
+{
+    "role": "readonly",
+    "permissions": [
+        "read:secret"
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "version": "1.0",
+    "policies": [
+        {
+            "role": "admin",
+            "capabilities": ["create", "read", "rotate", "delete"],
+            "paths": ["secrets/*"]
+        },
+        {
+            "role": "app-service",
+            "capabilities": ["read"],
+            "paths": ["secrets/app-db-password"]
+        }
+    ]
+}
