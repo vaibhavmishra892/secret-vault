@@ -1,0 +1,9 @@
+{
+    "role": "admin",
+    "permissions": [
+        "create:secret",
+        "read:secret",
+        "rotate:secret",
+        "delete:secret"
+    ]
+}
