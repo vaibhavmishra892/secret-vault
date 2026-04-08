@@ -11,7 +11,12 @@ import {
   AlertCircle,
   Key,
   ShieldCheck,
-  Search
+  Search,
+  Copy,
+  Check,
+  Clock,
+  Database,
+  Activity
 } from 'lucide-react';
 import { unsealVault, listSecrets, getSecret, createSecret, rotateSecret } from './api';
 
@@ -27,6 +32,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [copyStatus, setCopyStatus] = useState({});
 
   const clearError = () => setError('');
 
@@ -86,6 +92,14 @@ export default function App() {
     }
   }, [masterKey, revealedValues]);
 
+  const handleCopy = useCallback((id, value) => {
+    navigator.clipboard.writeText(value);
+    setCopyStatus((prev) => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setCopyStatus((prev) => ({ ...prev, [id]: false }));
+    }, 2000);
+  }, []);
+
   const handleRotate = useCallback(async (id) => {
     if (!window.confirm('Are you sure you want to rotate this credential?')) return;
     try {
@@ -124,6 +138,12 @@ export default function App() {
   const filteredSecrets = secrets.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const stats = {
+    total: secrets.length,
+    active: secrets.length, // Logic can be more complex
+    health: '100%',
+  };
 
   if (!isUnlocked) {
     return (
@@ -179,8 +199,9 @@ export default function App() {
           <span>CREDENTIAL VAULT</span>
         </div>
         <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
-          <div className="status-badge" style={{fontSize: '0.75rem', padding: '0.25rem 0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '100px', fontWeight: '700', border: '1px solid rgba(16, 185, 129, 0.2)'}}>
-            UNSEALED
+          <div className="status-badge" style={{fontSize: '0.75rem', padding: '0.4rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '100px', fontWeight: '700', border: '1px solid rgba(16, 185, 129, 0.2)'}}>
+            <span style={{width: '8px', height: '8px', background: '#10b981', borderRadius: '50%', display: 'inline-block', marginRight: '6px', boxShadow: '0 0 8px #10b981'}}></span>
+            ACTIVE
           </div>
           <button id="logout-btn" className="btn btn-ghost" onClick={handleLogout}>
             <LogOut size={18} />
@@ -200,14 +221,38 @@ export default function App() {
           </div>
         )}
 
+        <div className="stats-grid">
+          <div className="stat-card glass">
+            <div className="stat-icon" style={{background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6'}}><Database size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Total Secrets</span>
+              <span className="stat-value">{stats.total}</span>
+            </div>
+          </div>
+          <div className="stat-card glass">
+            <div className="stat-icon" style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981'}}><Shield size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Vault Health</span>
+              <span className="stat-value">{stats.health}</span>
+            </div>
+          </div>
+          <div className="stat-card glass">
+            <div className="stat-icon" style={{background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6'}}><Activity size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Active Roles</span>
+              <span className="stat-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
         <div className="actions-bar">
-          <h2>Stored Secrets</h2>
+          <h2>Secrets Manager</h2>
           <div style={{display: 'flex', gap: '0.75rem'}}>
             <div className="input-wrapper" style={{maxWidth: '240px'}}>
               <Search style={{position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4}} size={16} />
               <input 
                 type="text" 
-                placeholder="Search secrets..." 
+                placeholder="Search resources..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{paddingLeft: '32px', height: '40px'}}
@@ -215,7 +260,7 @@ export default function App() {
             </div>
             <button id="add-secret-btn" className="btn btn-primary" onClick={() => setShowModal(true)}>
               <Plus size={20} />
-              <span>New Secret</span>
+              <span>New Resource</span>
             </button>
           </div>
         </div>
@@ -223,8 +268,8 @@ export default function App() {
         {filteredSecrets.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><Shield size={48} /></div>
-            <p>No compatible secrets found in the vault.</p>
-            <button className="btn btn-outline" onClick={() => setShowModal(true)}>Create your first secret</button>
+            <p>Vault is empty or no matches found.</p>
+            <button className="btn btn-outline" onClick={() => setShowModal(true)}>Register new credential</button>
           </div>
         ) : (
           <div className="secrets-list">
@@ -235,10 +280,19 @@ export default function App() {
                     <Key size={16} style={{color: 'var(--primary)'}} />
                     <h3>{secret.name}</h3>
                   </div>
-                  <span className="secret-id">UID: {secret._id}</span>
+                  <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
+                    <span className="secret-id">ID: {secret._id.slice(-8)}</span>
+                    <span className="secret-date" style={{fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                      <Clock size={12} />
+                      {new Date(secret.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
                   {revealedValues[secret._id] && (
                     <div className="secret-value-container">
                       <div className="secret-value">{revealedValues[secret._id]}</div>
+                      <button className="copy-btn" onClick={() => handleCopy(secret._id, revealedValues[secret._id])}>
+                        {copyStatus[secret._id] ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -261,23 +315,23 @@ export default function App() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-card glass" onClick={(e) => e.stopPropagation()}>
-            <h3>Store New Secret</h3>
+            <h3>Store New Credential</h3>
             <div className="input-group">
-              <label htmlFor="new-secret-name">IDENTIFIER</label>
+              <label htmlFor="new-secret-name">RESOURCE NAME</label>
               <input
                 id="new-secret-name"
                 type="text"
-                placeholder="e.g., prod-database-password"
+                placeholder="e.g., AWS_PRODUCTION_SECRET"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
             </div>
             <div className="input-group">
-              <label htmlFor="new-secret-value">SECRET VALUE</label>
+              <label htmlFor="new-secret-value">ENCRYPTED VALUE</label>
               <input
                 id="new-secret-value"
                 type="password"
-                placeholder="Enter sensitive value..."
+                placeholder="Paste sensitive data here..."
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
@@ -287,7 +341,7 @@ export default function App() {
               <button id="cancel-create-btn" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
               <button id="save-secret-btn" className="btn btn-primary" onClick={handleCreate} disabled={loading}>
                 {loading ? <RefreshCw className="animate-spin" size={20} /> : <Shield size={20} />}
-                <span>{loading ? 'Encrypting...' : 'Encrypt & Save'}</span>
+                <span>{loading ? 'Encrypting...' : 'Secure & Save'}</span>
               </button>
             </div>
           </div>

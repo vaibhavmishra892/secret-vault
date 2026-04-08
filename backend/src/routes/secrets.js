@@ -141,6 +141,7 @@ router.post('/rotate/:id', requireMasterKey, authorize('rotate:secret'), async (
             secret.encryptedData = encryptResult.encryptedData;
             secret.iv = encryptResult.iv;
             secret.authTag = encryptResult.authTag;
+            secret.lastRotated = new Date();
 
             await secret.save();
 

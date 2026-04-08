@@ -287,6 +287,56 @@ body {
   animation: fadeIn 0.4s ease-out;
 }
 
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card {
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  background: var(--surface-bright);
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
 .actions-bar {
   display: flex;
   justify-content: space-between;
@@ -363,10 +413,14 @@ body {
 .secret-value-container {
   margin-top: 1rem;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   animation: fadeIn 0.2s ease-out;
 }
 
 .secret-value {
+  flex: 1;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.4);
   border-radius: var(--radius);
@@ -375,6 +429,26 @@ body {
   word-break: break-all;
   color: var(--accent);
   border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.copy-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-color: var(--text-muted);
 }
 
 .secret-actions {
