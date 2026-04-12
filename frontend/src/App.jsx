@@ -16,15 +16,22 @@ import {
   Check,
   Clock,
   Database,
-  Activity
+  Activity,
+  Layers,
+  ShieldAlert,
+  Terminal,
+  History,
+  Info,
+  Zap
 } from 'lucide-react';
-import { unsealVault, listSecrets, getSecret, createSecret, rotateSecret } from './api';
+import { unsealVault, listSecrets, getSecret, createSecret, rotateSecret, getAuditLogs, sealVault } from './api';
 
 export default function App() {
   const [masterKey, setMasterKey] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   const [secrets, setSecrets] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [revealedValues, setRevealedValues] = useState({});
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState('');
@@ -50,6 +57,8 @@ export default function App() {
       setIsUnlocked(true);
       const data = await listSecrets(key);
       setSecrets(Array.isArray(data) ? data : []);
+      const logs = await getAuditLogs(key);
+      setAuditLogs(logs);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,14 +71,27 @@ export default function App() {
     setIsUnlocked(false);
     setKeyInput('');
     setSecrets([]);
+    setAuditLogs([]);
     setRevealedValues({});
     clearError();
+  };
+
+  const handlePanic = async () => {
+    if (!window.confirm('EMERGENCY: Are you sure you want to seal the vault? This will wipe the master key from server memory.')) return;
+    try {
+      await sealVault();
+      handleLogout();
+    } catch (err) {
+      setError('Panic button failed to contact server. Please verify network.');
+    }
   };
 
   const refreshSecrets = useCallback(async () => {
     try {
       const data = await listSecrets(masterKey);
       setSecrets(Array.isArray(data) ? data : []);
+      const logs = await getAuditLogs(masterKey);
+      setAuditLogs(logs);
     } catch (err) {
       setError(err.message);
     }
@@ -141,7 +163,7 @@ export default function App() {
 
   const stats = {
     total: secrets.length,
-    active: secrets.length, // Logic can be more complex
+    active: secrets.length,
     health: '100%',
   };
 
@@ -150,41 +172,41 @@ export default function App() {
       <div className="login-container">
         <div className="login-card glass">
           <div className="lock-icon">
-            <Shield size={32} color="white" />
+            <Lock size={36} color="white" />
           </div>
           <h1>Vault Unseal</h1>
-          <p className="subtitle">Secure, Zero-Knowledge Credential Management</p>
+          <p className="subtitle">Secure, Zero-Knowledge Credential Infrastructure</p>
 
           {error && (
-            <div className="error-banner">
-              <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-                <AlertCircle size={16} />
+            <div className="error-banner glass-panel" style={{marginBottom: '2rem', borderLeft: '4px solid var(--danger)'}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem'}}>
+                <ShieldAlert size={18} style={{color: 'var(--danger)'}} />
                 <span>{error}</span>
               </div>
-              <button className="dismiss" onClick={clearError}>✕</button>
+              <button className="dismiss" onClick={clearError} style={{background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '1rem'}}>✕</button>
             </div>
           )}
 
           <div className="input-group">
-            <label htmlFor="master-key-input">MASTER KEY (HEX)</label>
+            <label>MASTER AUTHENTICATION KEY</label>
             <div className="input-wrapper">
               <input
-                id="master-key-input"
                 type="password"
-                placeholder="Enter your 32-byte hex master key..."
+                placeholder="Paste your 64-char hex key..."
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
-            <small className="hint">
-              Demo key: <code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code>
-            </small>
+            <div className="hint">
+              <small style={{display: 'block', marginBottom: '0.5rem', opacity: 0.6}}>SYSTEM REQUIREMENT: AES-256 CONFORMANT KEY</small>
+              <code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code>
+            </div>
           </div>
 
-          <button id="login-btn" className="btn btn-primary full-width" onClick={handleLogin} disabled={loading}>
+          <button className="btn btn-primary full-width" onClick={handleLogin} disabled={loading} style={{height: '56px', marginTop: '1rem'}}>
             {loading ? <RefreshCw className="animate-spin" size={20} /> : <Unlock size={20} />}
-            {loading ? 'Unsealing...' : 'Unseal Vault'}
+            <span>{loading ? 'INITIALIZING...' : 'UNSEAL VAULT'}</span>
           </button>
         </div>
       </div>
@@ -195,152 +217,198 @@ export default function App() {
     <div className="app">
       <header className="topbar glass">
         <div className="logo">
-          <ShieldCheck className="logo-icon" size={28} />
+          <ShieldCheck className="logo-icon" size={32} />
           <span>CREDENTIAL VAULT</span>
         </div>
-        <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
-          <div className="status-badge" style={{fontSize: '0.75rem', padding: '0.4rem 1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', borderRadius: '100px', fontWeight: '700', border: '1px solid rgba(16, 185, 129, 0.2)'}}>
-            <span style={{width: '8px', height: '8px', background: '#10b981', borderRadius: '50%', display: 'inline-block', marginRight: '6px', boxShadow: '0 0 8px #10b981'}}></span>
-            ACTIVE
+        <div style={{display: 'flex', gap: '1.25rem', alignItems: 'center'}}>
+          <div className="glass-panel" style={{padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+            <span style={{width: '10px', height: '10px', background: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981'}}></span>
+            <span style={{fontSize: '0.75rem', fontWeight: '800', letterSpacing: '0.05em'}}>SYSTEM ACTIVE</span>
           </div>
-          <button id="logout-btn" className="btn btn-ghost" onClick={handleLogout}>
-            <LogOut size={18} />
-            <span>Lock</span>
+          <button className="btn btn-outline" onClick={handleLogout} style={{padding: '0.5rem 1rem'}}>
+            <LogOut size={16} />
+            <span>Sec-Lock</span>
+          </button>
+          <button className="btn btn-danger panic-btn" onClick={handlePanic} style={{padding: '0.5rem 1rem', background: 'var(--danger)', color: 'white'}}>
+            <Zap size={16} />
+            <span>PANIC</span>
           </button>
         </div>
       </header>
 
-      <main className="dashboard">
-        {error && (
-          <div className="error-banner">
-            <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-              <AlertCircle size={16} />
-              <span>{error}</span>
+      <main className="dashboard" style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '2rem', maxWidth: '1400px'}}>
+        <div className="main-content">
+          <div className="stats-grid">
+            <div className="stat-card glass">
+              <div className="stat-icon" style={{background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary)'}}>
+                <Database size={24} />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">PROTECTED ENTITIES</p>
+                <h4 className="stat-value">{stats.total}</h4>
+              </div>
             </div>
-            <button className="dismiss" onClick={clearError}>✕</button>
+            <div className="stat-card glass">
+              <div className="stat-icon" style={{background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent)'}}>
+                <Shield size={24} />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">INFRASTRUCTURE HEALTH</p>
+                <h4 className="stat-value">{stats.health}</h4>
+              </div>
+            </div>
+            <div className="stat-card glass">
+              <div className="stat-icon" style={{background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6'}}>
+                <Activity size={24} />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">ACTIVE POLICIES</p>
+                <h4 className="stat-value" style={{fontSize: '1.2rem'}}>Admin:Global</h4>
+              </div>
+            </div>
           </div>
-        )}
 
-        <div className="stats-grid">
-          <div className="stat-card glass">
-            <div className="stat-icon" style={{background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6'}}><Database size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Total Secrets</span>
-              <span className="stat-value">{stats.total}</span>
+          <div className="actions-bar">
+            <div>
+              <h2>Secrets Infrastructure</h2>
+            </div>
+            <div style={{display: 'flex', gap: '1rem'}}>
+              <div className="input-wrapper" style={{width: '240px', position: 'relative'}}>
+                <Search style={{position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3}} size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Search secrets..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{paddingLeft: '3rem', height: '48px'}}
+                />
+              </div>
+              <button className="btn btn-primary" onClick={() => setShowModal(true)} style={{height: '48px'}}>
+                <Plus size={20} />
+                <span>New Secret</span>
+              </button>
             </div>
           </div>
-          <div className="stat-card glass">
-            <div className="stat-icon" style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981'}}><Shield size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Vault Health</span>
-              <span className="stat-value">{stats.health}</span>
+
+          {filteredSecrets.length === 0 ? (
+            <div className="empty-state glass" style={{borderRadius: '32px', padding: '4rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem'}}>
+              <Layers size={48} style={{opacity: 0.1}} />
+              <h3>Vault is Empty</h3>
+              <button className="btn btn-outline" style={{marginTop: '1rem'}} onClick={() => setShowModal(true)}>
+                Add First Secret
+              </button>
             </div>
-          </div>
-          <div className="stat-card glass">
-            <div className="stat-icon" style={{background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6'}}><Activity size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Active Roles</span>
-              <span className="stat-value">Admin</span>
+          ) : (
+            <div className="secrets-list">
+              {filteredSecrets.map((secret) => (
+                <div className="secret-card glass" key={secret._id}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '1.25rem', flex: 1}}>
+                    <div className="glass-panel" style={{width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                      <Key size={20} style={{color: 'var(--primary)'}} />
+                    </div>
+                    <div className="secret-info">
+                      <h3>{secret.name}</h3>
+                      <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
+                        <span className="secret-id">ID: {secret._id.slice(-8)}</span>
+                        <span style={{display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-muted)'}}>
+                          <Clock size={12} />
+                          {new Date(secret.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {revealedValues[secret._id] && (
+                        <div className="secret-value-container">
+                          <div className="secret-value">{revealedValues[secret._id]}</div>
+                          <button className="copy-btn" onClick={() => handleCopy(secret._id, revealedValues[secret._id])} style={{width: '36px', height: '36px', border: '1px solid var(--border)', background: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px'}}>
+                            {copyStatus[secret._id] ? <Check size={16} color="var(--accent)" /> : <Copy size={16} />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="secret-actions" style={{display: 'flex', gap: '0.5rem'}}>
+                    <button className="btn btn-outline" onClick={() => handleReveal(secret._id)} style={{padding: '0.5rem 1rem'}}>
+                      {revealedValues[secret._id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                      <span>{revealedValues[secret._id] ? 'Hide' : 'Reveal'}</span>
+                    </button>
+                    <button className="btn btn-outline" onClick={() => handleRotate(secret._id)} style={{padding: '0.5rem 1rem'}}>
+                      <RefreshCw size={16} />
+                      <span>Rotate</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
 
-        <div className="actions-bar">
-          <h2>Secrets Manager</h2>
-          <div style={{display: 'flex', gap: '0.75rem'}}>
-            <div className="input-wrapper" style={{maxWidth: '240px'}}>
-              <Search style={{position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4}} size={16} />
-              <input 
-                type="text" 
-                placeholder="Search resources..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{paddingLeft: '32px', height: '40px'}}
-              />
+        <aside className="activity-panel glass" style={{borderRadius: 'var(--radius-lg)', padding: '2rem', display: 'flex', flexDirection: 'column', height: 'fit-content', position: 'sticky', top: '100px'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+              <History size={20} style={{color: 'var(--primary)'}} />
+              <h3 style={{fontSize: '1.25rem', fontWeight: '800'}}>Security Audit</h3>
             </div>
-            <button id="add-secret-btn" className="btn btn-primary" onClick={() => setShowModal(true)}>
-              <Plus size={20} />
-              <span>New Resource</span>
+            <button className="btn btn-ghost" onClick={refreshSecrets} style={{padding: '0.4rem'}}>
+              <RefreshCw size={16} />
             </button>
           </div>
-        </div>
 
-        {filteredSecrets.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon"><Shield size={48} /></div>
-            <p>Vault is empty or no matches found.</p>
-            <button className="btn btn-outline" onClick={() => setShowModal(true)}>Register new credential</button>
-          </div>
-        ) : (
-          <div className="secrets-list">
-            {filteredSecrets.map((secret) => (
-              <div className="secret-card glass" key={secret._id}>
-                <div className="secret-info">
-                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px'}}>
-                    <Key size={16} style={{color: 'var(--primary)'}} />
-                    <h3>{secret.name}</h3>
-                  </div>
-                  <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
-                    <span className="secret-id">ID: {secret._id.slice(-8)}</span>
-                    <span className="secret-date" style={{fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px'}}>
-                      <Clock size={12} />
-                      {new Date(secret.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {revealedValues[secret._id] && (
-                    <div className="secret-value-container">
-                      <div className="secret-value">{revealedValues[secret._id]}</div>
-                      <button className="copy-btn" onClick={() => handleCopy(secret._id, revealedValues[secret._id])}>
-                        {copyStatus[secret._id] ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="secret-actions">
-                  <button className="btn btn-outline" onClick={() => handleReveal(secret._id)}>
-                    {revealedValues[secret._id] ? <EyeOff size={18} /> : <Eye size={18} />}
-                    <span>{revealedValues[secret._id] ? 'Hide' : 'Reveal'}</span>
-                  </button>
-                  <button className="btn btn-outline" onClick={() => handleRotate(secret._id)}>
-                    <RefreshCw size={18} />
-                    <span>Rotate</span>
-                  </button>
-                </div>
+          <div className="audit-timeline" style={{display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto', maxHeight: '600px', paddingRight: '0.5rem'}}>
+            {auditLogs.length === 0 ? (
+              <div style={{textAlign: 'center', padding: '2rem', color: 'var(--text-muted)'}}>
+                <Terminal size={32} style={{opacity: 0.1, marginBottom: '1rem'}} />
+                <p style={{fontSize: '0.8rem'}}>Access logs will appear here</p>
               </div>
-            ))}
+            ) : (
+              auditLogs.map((log) => (
+                <div className="audit-entry glass-panel" key={log._id} style={{padding: '1rem', borderLeft: `3px solid ${log.status === 'SUCCESS' ? 'var(--accent)' : log.status === 'FAILURE' ? 'var(--danger)' : 'var(--primary)'}`}}>
+                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem'}}>
+                     <span style={{fontSize: '0.7rem', fontWeight: '800', color: log.status === 'SUCCESS' ? 'var(--accent)' : 'inherit', letterSpacing: '0.05em'}}>
+                       {log.event.toUpperCase()}
+                     </span>
+                     <span style={{fontSize: '0.65rem', color: 'var(--text-muted)'}}>
+                       {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                     </span>
+                   </div>
+                   <p style={{fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.25rem'}}>{log.secretName}</p>
+                   <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.3'}}>{log.details}</p>
+                </div>
+              ))
+            )}
           </div>
-        )}
+        </aside>
       </main>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-card glass" onClick={(e) => e.stopPropagation()}>
-            <h3>Store New Credential</h3>
+        <div className="modal-overlay" onClick={() => setShowModal(false)} style={{position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
+          <div className="modal-card glass" onClick={(e) => e.stopPropagation()} style={{padding: '3rem', borderRadius: '24px', width: '100%', maxWidth: '480px'}}>
+            <h3 style={{marginBottom: '2rem'}}>Register Credential</h3>
             <div className="input-group">
-              <label htmlFor="new-secret-name">RESOURCE NAME</label>
-              <input
-                id="new-secret-name"
-                type="text"
-                placeholder="e.g., AWS_PRODUCTION_SECRET"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
+              <label>NAME</label>
+              <div className="input-wrapper">
+                <input
+                  type="text"
+                  placeholder="e.g. AWS_ACCESS_KEY"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+              </div>
             </div>
             <div className="input-group">
-              <label htmlFor="new-secret-value">ENCRYPTED VALUE</label>
-              <input
-                id="new-secret-value"
-                type="password"
-                placeholder="Paste sensitive data here..."
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              />
+              <label>VALUE</label>
+              <div className="input-wrapper">
+                <input
+                  type="password"
+                  placeholder="Paste sensitive data..."
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                />
+              </div>
             </div>
-            <div className="modal-actions">
-              <button id="cancel-create-btn" className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
-              <button id="save-secret-btn" className="btn btn-primary" onClick={handleCreate} disabled={loading}>
-                {loading ? <RefreshCw className="animate-spin" size={20} /> : <Shield size={20} />}
+            <div className="modal-actions" style={{display: 'flex', gap: '1rem', marginTop: '2.5rem'}}>
+              <button className="btn btn-outline" onClick={() => setShowModal(false)} style={{flex: 1}}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleCreate} disabled={loading} style={{flex: 2}}>
+                {loading ? <RefreshCw className="animate-spin" size={20} /> : <Unlock size={20} />}
                 <span>{loading ? 'Encrypting...' : 'Secure & Save'}</span>
               </button>
             </div>
